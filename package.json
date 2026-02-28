@@ -1,0 +1,74 @@
+{
+  "name": "@ansvar/trinidadian-law-mcp",
+  "version": "1.0.0",
+  "mcpName": "eu.ansvar/trinidadian-law-mcp",
+  "description": "Trinidad and Tobago law database -- legislation from laws.gov.tt with full-text search and citation validation",
+  "author": "Ansvar Systems <hello@ansvar.eu>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ansvar-Systems/Trinidad-and-Tobago-law-mcp.git"
+  },
+  "homepage": "https://ansvar.eu",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "trinidadian-law",
+    "legislation",
+    "legal",
+    "compliance",
+    "ansvar"
+  ],
+  "type": "module",
+  "main": "dist/src/index.js",
+  "bin": {
+    "trinidadian-law-mcp": "dist/src/index.js"
+  },
+  "files": [
+    "dist/",
+    "data/database.db",
+    "server.json",
+    "sources.yml",
+    "fixtures/",
+    "LICENSE",
+    "README.md",
+    "data/census.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:contract": "vitest run __tests__/contract/",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "start": "node dist/src/index.js",
+    "start:stdio": "node dist/src/index.js --stdio",
+    "health": "curl -s http://localhost:3000/health | jq .",
+    "census": "tsx scripts/census.ts",
+    "build:db": "tsx scripts/build-db.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "drift:detect": "tsx scripts/drift-detect.ts",
+    "validate": "npm run lint && npm run test && npm run test:contract",
+    "check-updates": "node --import tsx scripts/check-updates.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@ansvar/mcp-sqlite": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vercel/node": "^5.0.0",
+    "better-sqlite3": "^11.0.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "prettier": "^3.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

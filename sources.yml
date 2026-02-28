@@ -1,0 +1,28 @@
+# sources.yml
+schema_version: "1.0"
+mcp_name: "Trinidad and Tobago Law MCP"
+jurisdiction: "TT"
+
+sources:
+  - name: "Trinidad and Tobago Official Legal Portal"
+    authority: "Trinidad and Tobago Government"
+    official_portal: "https://laws.gov.tt"
+    canonical_identifier: "tt-law"
+    retrieval_method: "HTML/PDF scraping"
+    api_documentation: "N/A"
+    update_frequency: "As laws are enacted"
+    last_ingested: "pending"
+    license_or_terms:
+      type: "Government Publication"
+      url: "https://laws.gov.tt"
+      summary: "Official government legal database; legislation is public domain as government publication"
+    coverage:
+      scope: "Pending census and ingestion"
+      limitations: "Corpus not yet ingested"
+    languages:
+      - "en"
+
+data_freshness:
+  automated_checks: false
+  check_frequency: "monthly"
+  last_verified: "pending"

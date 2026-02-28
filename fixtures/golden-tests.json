@@ -1,0 +1,36 @@
+{
+  "$schema": "./golden-tests.schema.json",
+  "version": "1.0",
+  "mcp_name": "Trinidad and Tobago Law MCP",
+  "description": "Golden contract tests for the Trinidad and Tobago Law MCP",
+  "tests": [
+    {
+      "id": "TT-001",
+      "category": "search",
+      "description": "Search for 'data protection' returns results",
+      "tool": "search_legislation",
+      "input": {
+        "query": "data protection",
+        "limit": 5
+      },
+      "assertions": {
+        "result_not_empty": true,
+        "min_results": 1,
+        "text_not_empty": true
+      }
+    },
+    {
+      "id": "TT-002",
+      "category": "negative",
+      "description": "Negative test: non-existent law",
+      "tool": "get_provision",
+      "input": {
+        "document_id": "NONEXISTENT_LAW_999",
+        "provision_ref": "art999"
+      },
+      "assertions": {
+        "handles_gracefully": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "eu.ansvar/trinidadian-law-mcp",
+  "description": "Trinidad and Tobago legislation via MCP -- full-text search across statutes and provisions",
+  "repository": {
+    "url": "https://github.com/Ansvar-Systems/Trinidad-and-Tobago-law-mcp",
+    "source": "github"
+  },
+  "homepage": "https://ansvar.eu",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "keywords": [
+    "trinidadian-law",
+    "trinidadian",
+    "legal",
+    "compliance",
+    "mcp"
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/trinidadian-law-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/trinidadian-law-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "https://trinidadian-law-mcp.vercel.app/mcp"
+      }
+    }
+  ]
+}
