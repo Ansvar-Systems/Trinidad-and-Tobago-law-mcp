@@ -1,22 +1,19 @@
 /**
- * Dominican Republic Law PDF/Text Parser
+ * Trinidad and Tobago Law PDF Parser
  *
  * Parses law text extracted from PDFs downloaded from
- * consultoria.gov.do. Uses `pdftotext` for extraction,
- * then applies regex-based article parsing.
+ * laws.gov.tt. Uses `pdftotext` (via execFileSync) for extraction,
+ * then applies regex-based section parsing.
  *
- * Dominican Republic article patterns:
- *   "ARTICULO lo.-" (older laws, ordinal suffixes)
- *   "Artículo 1.-"
- *   "Art. 1.-"
- *   "ARTICULO UNICO.-"
- *   "PARRAFO.-" / "Párrafo.-"
+ * Trinidad and Tobago follows English common law:
+ *   "Section 1." / "1." / "1.-(1)"
+ *   "PART I", "PART II"
+ *   Short titles, interpretation sections, schedules
  *
- * Structure patterns:
- *   "TITULO I", "CAPITULO I", "SECCION I"
+ * Note: Uses execFileSync (not exec) to prevent command injection.
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 export interface ActIndexEntry {
   id: string;
@@ -62,21 +59,20 @@ export interface ParsedAct {
 /* ---------- PDF Text Extraction ---------- */
 
 export function extractTextFromPdf(pdfPath: string): string {
+  // Uses execFileSync (safe: no shell expansion, pdfPath is not interpolated into a shell command)
   try {
-    const result = execSync(`pdftotext -layout "${pdfPath}" -`, {
+    return execFileSync('pdftotext', ['-layout', pdfPath, '-'], {
       maxBuffer: 50 * 1024 * 1024,
       encoding: 'utf-8',
       timeout: 30000,
     });
-    return result;
   } catch {
     try {
-      const result = execSync(`pdftotext "${pdfPath}" -`, {
+      return execFileSync('pdftotext', [pdfPath, '-'], {
         maxBuffer: 50 * 1024 * 1024,
         encoding: 'utf-8',
         timeout: 30000,
       });
-      return result;
     } catch {
       return '';
     }
@@ -85,42 +81,25 @@ export function extractTextFromPdf(pdfPath: string): string {
 
 /* ---------- Text Parsing ---------- */
 
-// Older DR laws use "ARTICULO lo." with ordinal suffix patterns
-// Modern laws use "Artículo 1.-"
-const ARTICLE_PATTERNS = [
-  // Modern: "Artículo 1.-", "Art. 1.-"
-  /(?:^|\n)\s*(?:Art[ií]culo|Art\.?)\s+((?:\d+[\s.]*(?:bis|ter)?|\d+[A-Z]?(?:\.\d+)?|[ÚU]NICO))\s*[.°º]*[-.:–]?\s*([^\n]*)/gimu,
-  // Older: "ARTICULO lo.-", "ARTICULO 2o.-", "ARTICULO UNICO.-"
-  /(?:^|\n)\s*ARTICULO\s+(\d+)\s*[oOº°]\s*[.]*[-.:–]?\s*([^\n]*)/gimu,
+// Trinidad and Tobago section patterns (English common law)
+const SECTION_PATTERNS = [
+  // "3. (1) The Minister may..." or "3.-(1)"
+  /(?:^|\n)\s*(\d+[A-Z]?)\s*[.\-]+\s*(?:\(1\)\s*)?([^\n]*)/gm,
+  // "Section 3." explicit
+  /(?:^|\n)\s*(?:Section|Sec\.?)\s+(\d+[A-Z]?)\s*[.\-:]+\s*([^\n]*)/gim,
 ];
 
-// Párrafo patterns (Dominican-specific sub-articles)
-const PARRAFO_RE = /(?:^|\n)\s*(?:P[AÁ]RRAFO|PARAGRAFO)\s*((?:I{1,3}V?|V?I{0,3}|[ÚU]NICO|\d+)?)\s*[.°º]*[-.:–]?\s*([^\n]*)/gimu;
+// Part/Schedule patterns
+const PART_RE = /(?:^|\n)\s*((?:PART|SCHEDULE|FIRST SCHEDULE|SECOND SCHEDULE|THIRD SCHEDULE)\s+[IVXLC0-9]+[^\n]*)/gim;
 
-// Chapter/Title patterns
-const CHAPTER_RE = /(?:^|\n)\s*((?:CAP[ÍI]TULO|T[ÍI]TULO|SECCI[ÓO]N)\s+[IVXLC0-9]+[^\n]*)/gimu;
-
-// Definition patterns
+// Definition patterns for common law statutes
 const DEFINITION_PATTERNS = [
-  /se\s+(?:define|entiende|entender[aá])\s+(?:como|por)\s+"?([^".:]+)"?\s*(?:como|a|:)\s*([^.]+\.)/gi,
-  /(?:Para\s+(?:los\s+)?efectos?\s+de\s+(?:esta|la\s+presente)\s+(?:ley|norma)[^:]*:\s*)\n?\s*(?:\d+[.)]\s*)?([^:–-]+)\s*[:–-]\s*([^.;]+[.;])/gim,
+  /["\u201C]([^"\u201D]{2,60})["\u201D]\s+means\s+([^;]+;)/gi,
+  /["\u201C]([^"\u201D]{2,60})["\u201D]\s+includes\s+([^;]+;)/gi,
 ];
-
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&aacute;/g, 'á').replace(/&eacute;/g, 'é')
-    .replace(/&iacute;/g, 'í').replace(/&oacute;/g, 'ó')
-    .replace(/&uacute;/g, 'ú').replace(/&ntilde;/g, 'ñ')
-    .replace(/&Aacute;/g, 'Á').replace(/&Eacute;/g, 'É')
-    .replace(/&Iacute;/g, 'Í').replace(/&Oacute;/g, 'Ó')
-    .replace(/&Uacute;/g, 'Ú').replace(/&Ntilde;/g, 'Ñ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)));
-}
 
 function cleanText(text: string): string {
-  return decodeEntities(text)
+  return text
     .replace(/<[^>]*>/g, '')
     .replace(/\r\n/g, '\n')
     .replace(/\f/g, '\n')
@@ -128,19 +107,13 @@ function cleanText(text: string): string {
     .trim();
 }
 
-/**
- * Find the start of the actual law text.
- * DR laws often start with preamble from the executive/congress.
- */
 function findLawTextStart(text: string): number {
   const startPatterns = [
-    /\b(?:EL\s+CONGRESO\s+NACIONAL)\b/i,
-    /\bCONSIDERANDO\b/i,
-    /\b(?:EN\s+NOMBRE\s+DE\s+LA\s+REP[ÚU]BLICA)\b/i,
-    /\bHA\s+DADO\s+LA\s+SIGUIENTE\s+LEY\b/i,
-    /\bDECRETA\s*:/i,
-    /\bRESUELVE\s*:/i,
-    /(?:^|\n)\s*(?:ARTICULO|Art[ií]culo)\s+(?:1|lo\.?|PRIMERO|[ÚU]NICO)\s*[.°º]*[-.:–]/im,
+    /\bENACTED\s+by\s+the\s+Parliament\b/i,
+    /\bBE\s+IT\s+ENACTED\b/i,
+    /\bShort\s+title\b/i,
+    /(?:^|\n)\s*1\s*[.\-]+\s*(?:\(1\)|This\s+Act)/m,
+    /\bPART\s+[I1]\b/i,
   ];
 
   let earliestPos = text.length;
@@ -154,10 +127,7 @@ function findLawTextStart(text: string): number {
   return earliestPos === text.length ? 0 : earliestPos;
 }
 
-/**
- * Parse extracted PDF text into provisions.
- */
-export function parseDominicanLawText(text: string, act: ActIndexEntry): ParsedAct {
+export function parseTTLawText(text: string, act: ActIndexEntry): ParsedAct {
   const cleaned = cleanText(text);
   const startIdx = findLawTextStart(cleaned);
   const lawText = cleaned.substring(startIdx);
@@ -173,76 +143,43 @@ export function parseDominicanLawText(text: string, act: ActIndexEntry): ParsedA
 
   const headings: Heading[] = [];
 
-  // Try all article patterns
-  for (const pattern of ARTICLE_PATTERNS) {
+  for (const pattern of SECTION_PATTERNS) {
     const re = new RegExp(pattern.source, pattern.flags);
     let match: RegExpExecArray | null;
 
     while ((match = re.exec(lawText)) !== null) {
-      const num = match[1].replace(/\s+/g, '').replace(/\.$/, '');
+      const num = match[1].trim();
       const title = (match[2] ?? '').trim();
-      const ref = `art${num.toLowerCase()}`;
+      const ref = `s${num}`;
 
-      // Avoid duplicate refs at same position
       if (!headings.some(h => h.ref === ref && Math.abs(h.position - match!.index) < 20)) {
         headings.push({
           ref,
-          title: title || `Artículo ${num}`,
+          title: title || `Section ${num}`,
           position: match.index,
         });
       }
     }
   }
 
-  // Párrafo headings (as sub-provisions)
-  const parrafoRe = new RegExp(PARRAFO_RE.source, PARRAFO_RE.flags);
-  let match: RegExpExecArray | null;
-  while ((match = parrafoRe.exec(lawText)) !== null) {
-    const num = (match[1] ?? '').trim() || 'unico';
-    const title = (match[2] ?? '').trim();
-
-    // Find the parent article for this párrafo
-    let parentRef = '';
-    for (const h of headings) {
-      if (h.position <= match.index) {
-        parentRef = h.ref;
-      }
-    }
-
-    const ref = parentRef ? `${parentRef}-parrafo-${num.toLowerCase()}` : `parrafo-${num.toLowerCase()}`;
-    headings.push({
-      ref,
-      title: title || `Párrafo ${num}`,
-      position: match.index,
-    });
-  }
-
-  // Sort by position
   headings.sort((a, b) => a.position - b.position);
 
-  // Track current chapter
-  const chapterRe = new RegExp(CHAPTER_RE.source, CHAPTER_RE.flags);
-  const chapterPositions: { chapter: string; position: number }[] = [];
-  while ((match = chapterRe.exec(lawText)) !== null) {
-    chapterPositions.push({
-      chapter: match[1].trim(),
-      position: match.index,
-    });
+  const partRe = new RegExp(PART_RE.source, PART_RE.flags);
+  const partPositions: { part: string; position: number }[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = partRe.exec(lawText)) !== null) {
+    partPositions.push({ part: match[1].trim(), position: match.index });
   }
 
-  // Extract content between headings
-  let currentChapter = '';
+  let currentPart = '';
   for (let i = 0; i < headings.length; i++) {
     const heading = headings[i];
     const nextHeading = headings[i + 1];
     const endPos = nextHeading ? nextHeading.position : lawText.length;
     const content = lawText.substring(heading.position, endPos).trim();
 
-    // Determine chapter
-    for (const cp of chapterPositions) {
-      if (cp.position <= heading.position) {
-        currentChapter = cp.chapter;
-      }
+    for (const pp of partPositions) {
+      if (pp.position <= heading.position) currentPart = pp.part;
     }
 
     const cleanedContent = content
@@ -254,21 +191,20 @@ export function parseDominicanLawText(text: string, act: ActIndexEntry): ParsedA
     if (cleanedContent.length > 10) {
       provisions.push({
         provision_ref: heading.ref,
-        chapter: currentChapter || undefined,
-        section: currentChapter || act.title,
+        chapter: currentPart || undefined,
+        section: currentPart || act.title,
         title: heading.title,
         content: cleanedContent,
       });
     }
   }
 
-  // Extract definitions
   for (const pattern of DEFINITION_PATTERNS) {
     const defRe = new RegExp(pattern.source, pattern.flags);
     while ((match = defRe.exec(lawText)) !== null) {
       const term = (match[1] ?? '').trim();
       const definition = (match[2] ?? '').trim();
-      if (term.length > 2 && term.length < 100 && definition.length > 10) {
+      if (term.length > 1 && term.length < 80 && definition.length > 10) {
         let sourceProvision: string | undefined;
         for (let i = headings.length - 1; i >= 0; i--) {
           if (headings[i].position <= match.index) {
@@ -281,7 +217,6 @@ export function parseDominicanLawText(text: string, act: ActIndexEntry): ParsedA
     }
   }
 
-  // Fallback: single provision for entire text
   if (provisions.length === 0 && lawText.length > 50) {
     provisions.push({
       provision_ref: 'full-text',
@@ -306,10 +241,7 @@ export function parseDominicanLawText(text: string, act: ActIndexEntry): ParsedA
   };
 }
 
-/**
- * Parse a PDF file into a ParsedAct.
- */
-export function parseDominicanLawPdf(pdfPath: string, act: ActIndexEntry): ParsedAct {
+export function parseTTLawPdf(pdfPath: string, act: ActIndexEntry): ParsedAct {
   const text = extractTextFromPdf(pdfPath);
   if (!text || text.trim().length < 50) {
     return {
@@ -326,12 +258,9 @@ export function parseDominicanLawPdf(pdfPath: string, act: ActIndexEntry): Parse
       definitions: [],
     };
   }
-  return parseDominicanLawText(text, act);
+  return parseTTLawText(text, act);
 }
 
-// Aliases for ingest.ts compatibility
 export function parseHtml(html: string, act: ActIndexEntry): ParsedAct {
-  return parseDominicanLawText(html, act);
+  return parseTTLawText(html, act);
 }
-
-export { parseDominicanLawPdf as parseDominicanLawHtml };
